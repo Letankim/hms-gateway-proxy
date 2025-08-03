@@ -45,14 +45,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const targetUrl = `http://${latestIP}:7066/api/v1/${fullPath}${queryString ? `?${queryString}` : ""}`;
   console.log("[Proxy] →", targetUrl);
-
+const filteredHeaders = Object.fromEntries(
+  Object.entries(req.headers).filter(
+    ([, value]) => typeof value === "string"
+  )
+);
   try {
     const apiRes = await fetch(targetUrl, {
       method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
-      },
+      headers: filteredHeaders as HeadersInit,
       body:
         req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS"
           ? undefined
