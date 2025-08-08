@@ -33,17 +33,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const fullPath = Array.isArray(pathParts) ? pathParts.join("/") : pathParts;
 
   let latestIP = "127.0.0.1";
-  try {
-    const ipRes = await fetch("https://3docorp.id.vn/ip_handler.php");
-    const ipData = await ipRes.json();
-    if (ipData?.ip) {
-      latestIP = ipData.ip;
-    }
-  } catch (err) {
-    console.warn("⚠️ Không thể gọi ip_handler.php:", err);
-  }
+  // try {
+  //   const ipRes = await fetch("https://3docorp.id.vn/ip_handler.php");
+  //   const ipData = await ipRes.json();
+  //   if (ipData?.ip) {
+  //     latestIP = ipData.ip;
+  //   }
+  // } catch (err) {
+  //   console.warn("⚠️ Không thể gọi ip_handler.php:", err);
+  // }
 
-  const targetUrl = `http://${latestIP}:7066/api/v1/${fullPath}${queryString ? `?${queryString}` : ""}`;
+  const targetUrl = `https://8722492e3aff.ngrok-free.app/api/v1/${fullPath}${queryString ? `?${queryString}` : ""}`;
   console.log("[Proxy] →", targetUrl);
 const chunks: Buffer[] = [];
 for await (const chunk of req) {
