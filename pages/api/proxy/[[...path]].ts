@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   //   console.warn("⚠️ Không thể gọi ip_handler.php:", err);
   // }
 
-  const targetUrl = `https://8722492e3aff.ngrok-free.app/api/v1/${fullPath}${queryString ? `?${queryString}` : ""}`;
+  const targetUrl = `https://af8434379456.ngrok-free.app/api/v1/${fullPath}${queryString ? `?${queryString}` : ""}`;
   console.log("[Proxy] →", targetUrl);
 const chunks: Buffer[] = [];
 for await (const chunk of req) {
