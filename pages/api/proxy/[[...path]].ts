@@ -1,14 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { Readable } from "stream";
 
-export const config = {
-  api: { bodyParser: false },
-};
+export const config = { api: { bodyParser: false } };
 
 function setCorsHeaders(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
+
+const HOP_BY_HOP = [
+  "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+  "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
+  "accept-encoding"
+];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   setCorsHeaders(res);
@@ -18,84 +23,96 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const queryParams = { ...req.query };
   delete (queryParams as any).path;
 
+  // ✅ Fix: luôn convert về string & bỏ undefined/null
   const queryString = new URLSearchParams(
-  Object.entries(queryParams)
-    .flatMap(([k, v]) =>
+    Object.entries(queryParams).flatMap(([k, v]) =>
       Array.isArray(v)
         ? v.filter(x => x != null).map(x => [k, String(x)])
         : v != null
           ? [[k, String(v)]]
           : []
     ) as string[][]
-).toString();
+  ).toString();
 
-
-  const fullPath = Array.isArray(pathParts) ? pathParts.join("/") : pathParts;
-
+  const fullPath = Array.isArray(pathParts) ? pathParts.join("/") : (pathParts || "");
   const targetUrl =
     `https://originally-firewall-facial-childhood.trycloudflare.com/api/v1/${fullPath}` +
     (queryString ? `?${queryString}` : "");
 
   console.log("[Proxy] →", targetUrl);
 
-  // Đọc body một lần (vì req là stream)
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const requestBody = Buffer.concat(chunks);
+  // ✅ Chỉ đọc body khi cần
+  let requestBody: Buffer | undefined;
+  if (!["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    requestBody = Buffer.concat(chunks);
+  }
+
+  // ✅ Lọc header gửi đi
+  const filteredHeaders: HeadersInit = Object.fromEntries(
+    Object.entries(req.headers)
+      .filter(([_, v]) => typeof v === "string")
+      .filter(([k]) => !HOP_BY_HOP.includes(k.toLowerCase()))
+  ) as HeadersInit;
+
+  // ✅ Thêm timeout để tránh treo
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15s
 
   try {
-    // Lọc bớt hop-by-hop headers & header không phải string
-    const filteredHeaders: HeadersInit = Object.fromEntries(
-      Object.entries(req.headers)
-        .filter(([_, v]) => typeof v === "string")
-        .filter(([k]) => ![
-          "host", "connection", "content-length", "accept-encoding", "transfer-encoding", "keep-alive"
-        ].includes(k.toLowerCase()))
-    ) as HeadersInit;
-
     const apiRes = await fetch(targetUrl, {
       method: req.method,
       headers: filteredHeaders,
-      body: (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS")
-        ? undefined
-        : requestBody,
-      // ⭐ Quan trọng: KHÔNG follow redirect để giữ được Location hms3do://
-      redirect: "manual",
+      body: requestBody,
+      redirect: "manual",          // ❗ Không follow để giữ Location custom scheme
+      signal: controller.signal,
     });
 
-    // Nếu backend trả 3xx + Location, forward y nguyên cho client/app
+    // ✅ Nhánh redirect: forward nguyên status + Location, đồng thời cancel body để giải phóng socket
     if (apiRes.status >= 300 && apiRes.status < 400) {
       const location = apiRes.headers.get("location");
+      try { await apiRes.body?.cancel(); } catch {}
       if (location) {
-        // Cách 1: dùng writeHead để chắc chắn không bị Next/Vercel “giúp đỡ”
         res.setHeader("Cache-Control", "no-store");
         res.setHeader("Location", location);
-        // Giữ nguyên status code từ backend (302/303/307…)
-        res.status(apiRes.status).end();
-        return;
-        // Hoặc Cách 2 (đơn giản): res.redirect(location) – đôi khi bị chặn với non-http trên vài môi trường
+        return res.status(apiRes.status).end();   // ❗ Kết thúc response
       }
+      // Không có Location -> trả nguyên mã 3xx
+      return res.status(apiRes.status).end();
     }
 
-    // Các response khác (200/4xx/5xx)
-    const contentType = apiRes.headers.get("content-type") || "application/octet-stream";
-    res.status(apiRes.status);
-    res.setHeader("Content-Type", contentType);
-
-    if (contentType.includes("application/json")) {
-      const data = await apiRes.text(); // dùng text để tránh lỗi JSON invalid
-      try {
-        res.json(JSON.parse(data));
-      } catch {
-        // Trường hợp backend trả JSON nhưng không valid → trả thẳng text
-        res.send(data);
+    // ✅ Copy một số header phản hồi cần thiết (trừ hop-by-hop)
+    apiRes.headers.forEach((value, key) => {
+      if (!HOP_BY_HOP.includes(key.toLowerCase())) {
+        if (key.toLowerCase() === "content-encoding") return;   // tránh double-encoding
+        if (key.toLowerCase() === "content-length") return;     // để Node tự set
+        res.setHeader(key, value);
       }
+    });
+
+    res.status(apiRes.status);
+
+    // ✅ Nếu có body, stream thẳng để tránh buffer lớn & đảm bảo đóng kết nối đúng cách
+    if (apiRes.body) {
+      const nodeReadable = Readable.fromWeb(apiRes.body as any);
+      nodeReadable.on("error", (e) => {
+        console.error("Stream error:", e);
+        if (!res.headersSent) res.status(502);
+        res.end();
+      });
+      nodeReadable.pipe(res);
     } else {
-      const buf = Buffer.from(await apiRes.arrayBuffer());
-      res.send(buf);
+      res.end();
     }
   } catch (err: any) {
     console.error("Proxy error:", err);
-    res.status(500).json({ error: "Proxy failed", detail: err?.message || "Unknown error" });
+    // Nếu abort do timeout, trả 504 thay vì 500
+    if (err?.name === "AbortError") {
+      return res.status(504).json({ error: "Upstream timeout", detail: "Upstream did not respond in time" });
+    }
+    res.status(502).json({ error: "Proxy failed", detail: err?.message || "Unknown error" });
+  } finally {
+    clearTimeout(timeout);
   }
 }
