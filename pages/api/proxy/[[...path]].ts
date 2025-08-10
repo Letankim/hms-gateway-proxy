@@ -61,15 +61,22 @@ const requestBody = Buffer.concat(chunks);
       )
     );
 
-const apiRes = await fetch(targetUrl, {
-  method: req.method,
-  headers: filteredHeaders as HeadersInit,
-  body:
-    req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS"
-      ? undefined
-      : requestBody, 
-});
+    const apiRes = await fetch(targetUrl, {
+      method: req.method,
+      headers: filteredHeaders as HeadersInit,
+      body:
+        req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS"
+          ? undefined
+          : requestBody, 
+    });
 
+     if (apiRes.status >= 300 && apiRes.status < 400) {
+      const location = apiRes.headers.get('location');
+      if (location) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.redirect(location);
+      }
+    }
 
     const contentType = apiRes.headers.get("content-type");
     res.status(apiRes.status);
