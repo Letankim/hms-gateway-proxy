@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // const targetUrl = `https://originally-firewall-facial-childhood.trycloudflare.com/api/v1/${fullPath}${
   //   queryString ? `?${queryString}` : ""
   // }`;
-  const targetUrl = `https://${latestIP}/api/v1/${fullPath}${
+  const targetUrl = `http://${latestIP}/api/v1/${fullPath}${
     queryString ? `?${queryString}` : ""
   }`;
   console.log("[Proxy] →", targetUrl);
