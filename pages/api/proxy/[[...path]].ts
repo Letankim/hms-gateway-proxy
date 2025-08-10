@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // const targetUrl = `https://originally-firewall-facial-childhood.trycloudflare.com/api/v1/${fullPath}${
   //   queryString ? `?${queryString}` : ""
   // }`;
-  const targetUrl = `https://farms-chem-reuters-tone.trycloudflare.com/api/v1/${fullPath}${
+  const targetUrl = `https://4489a19fc8ee.ngrok-free.app/api/v1/${fullPath}${
     queryString ? `?${queryString}` : ""
   }`;
   console.log("[Proxy] →", targetUrl);
