@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // const targetUrl = `https://facilitate-dui-investigate-aye.trycloudflare.com/api/v1/${fullPath}${
   //   queryString ? `?${queryString}` : ""
   // }`;
-  const targetUrl = `http://34.87.54.239:8080/${fullPath}${
+  const targetUrl = `http://35.198.229.102:8000/${fullPath}${
     queryString ? `?${queryString}` : ""
   }`;
   // Thu thập request body
