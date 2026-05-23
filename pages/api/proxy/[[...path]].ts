@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // const targetUrl = `https://facilitate-dui-investigate-aye.trycloudflare.com/api/v1/${fullPath}${
   //   queryString ? `?${queryString}` : ""
   // }`;
-  const targetUrl = `http://api.wisedu.io/${fullPath}${
+  const targetUrl = `https://api.wisedu.io/${fullPath}${
   queryString ? `?${queryString}` : ""
 }`;
   // Thu thập request body
