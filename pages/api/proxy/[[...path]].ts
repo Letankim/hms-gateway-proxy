@@ -34,9 +34,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // const targetUrl = `https://facilitate-dui-investigate-aye.trycloudflare.com/api/v1/${fullPath}${
   //   queryString ? `?${queryString}` : ""
   // }`;
-  const targetUrl = `http://34.142.150.3:8000/${fullPath}${
-    queryString ? `?${queryString}` : ""
-  }`;
+  const targetUrl = `http://api.wisedu.io/${fullPath}${
+  queryString ? `?${queryString}` : ""
+}`;
   // Thu thập request body
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
